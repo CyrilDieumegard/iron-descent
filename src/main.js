@@ -113,11 +113,15 @@ const overlay = document.createElement('div');
 overlay.style.cssText = 'position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#151a28 0%,#05060a 78%);color:#fff;font-family:monospace;user-select:none';
 overlay.innerHTML = `
 <div style="text-align:center;max-width:600px;padding:24px">
-  <div style="font-size:54px;font-weight:bold;letter-spacing:8px;color:#ffb347;text-shadow:0 0 26px rgba(255,102,0,.8)">IRON&nbsp;DESCENT</div>
+  <div style="font-size:clamp(28px,8vw,54px);font-weight:bold;letter-spacing:clamp(2px,1.5vw,8px);color:#ffb347;text-shadow:0 0 26px rgba(255,102,0,.8)">IRON&nbsp;DESCENT</div>
   <div style="margin-top:8px;color:#8a94ab;font-size:13px;letter-spacing:2px">ARENA FPS — SURVIVE THE SENTRY WAVES</div>
-  <div style="margin:30px auto 0;display:inline-block;text-align:left;font-size:15px;line-height:2;color:#cfd6e4">
-    <div><span style="color:#fff;font-weight:bold">WASD</span> move &nbsp;·&nbsp; <span style="color:#fff;font-weight:bold">Mouse</span> aim &amp; shoot</div>
-    <div><span style="color:#fff;font-weight:bold">1 / 2</span> weapons &nbsp;·&nbsp; <span style="color:#fff;font-weight:bold">R</span> reload &nbsp;·&nbsp; <span style="color:#fff;font-weight:bold">Space</span> jump &nbsp;·&nbsp; <span style="color:#fff;font-weight:bold">Shift</span> sprint</div>
+  <div id="id-controls-desktop" style="margin:30px auto 0;font-size:15px;line-height:2;color:#cfd6e4">
+    <div style="white-space:nowrap"><span style="color:#fff;font-weight:bold">WASD</span> move &nbsp;·&nbsp; <span style="color:#fff;font-weight:bold">Mouse</span> aim &amp; shoot</div>
+    <div style="white-space:nowrap"><span style="color:#fff;font-weight:bold">1 / 2</span> weapons &nbsp;·&nbsp; <span style="color:#fff;font-weight:bold">R</span> reload &nbsp;·&nbsp; <span style="color:#fff;font-weight:bold">Space</span> jump &nbsp;·&nbsp; <span style="color:#fff;font-weight:bold">Shift</span> sprint</div>
+  </div>
+  <div id="id-controls-touch" style="display:none;margin:30px auto 0;font-size:15px;line-height:2;color:#cfd6e4">
+    <div><span style="color:#fff;font-weight:bold">Left thumb</span> move &nbsp;·&nbsp; <span style="color:#fff;font-weight:bold">Right thumb</span> aim</div>
+    <div><span style="color:#fff;font-weight:bold">FIRE</span> button to shoot &nbsp;·&nbsp; push the stick all the way to sprint</div>
   </div>
   <div id="id-progress-wrap" style="margin:34px auto 0;width:320px;max-width:80%">
     <div id="id-progress-label" style="font-size:13px;color:#9fb0ff;margin-bottom:8px">LOADING… 0%</div>
@@ -125,13 +129,20 @@ overlay.innerHTML = `
   </div>
   <button id="id-play" style="display:none;margin-top:34px;padding:14px 64px;font:bold 22px monospace;letter-spacing:4px;color:#0a0a12;background:#ffb347;border:none;border-radius:6px;cursor:pointer;box-shadow:0 0 24px rgba(255,153,51,.5)">PLAY</button>
   <div id="id-resume" style="display:none;margin-top:34px;font-size:22px;color:#ffb347;cursor:pointer">CLICK TO RESUME</div>
-  <div style="margin-top:30px;font-size:12px;color:#6a7285">Desktop browser required (mouse + keyboard)</div>
+  <div id="id-desktop-note" style="margin-top:30px;font-size:12px;color:#6a7285">Desktop browser required (mouse + keyboard)</div>
   <div style="margin-top:12px;font-size:13px;color:#8a94ab">
     <a href="https://github.com/CyrilDieumegard/iron-descent" target="_blank" rel="noopener" style="color:#9fb0ff">View source</a>
-    &nbsp;·&nbsp; Built with LocalClaw
+    &nbsp;·&nbsp; <a href="https://localclaw.io/pricing" target="_blank" rel="noopener" style="color:#9fb0ff">Built with LocalClaw</a> &nbsp;·&nbsp; AI-assisted with Kimi K3
   </div>
 </div>`;
 document.body.appendChild(overlay);
+// ---------- Mobile / touch support ----------
+const isTouch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+if (isTouch) {
+  overlay.querySelector('#id-controls-desktop').style.display = 'none';
+  overlay.querySelector('#id-controls-touch').style.display = 'block';
+  overlay.querySelector('#id-desktop-note').style.display = 'none';
+}
 const playBtn = overlay.querySelector('#id-play');
 const resumeEl = overlay.querySelector('#id-resume');
 const progressWrap = overlay.querySelector('#id-progress-wrap');
@@ -143,6 +154,7 @@ document.body.appendChild(dmgFx);
 const over = document.createElement('div');
 over.style.cssText = 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(20,0,0,.85);color:#ff4444;font:32px monospace;text-align:center';
 over.innerHTML = 'GAME OVER<br><span style="font-size:18px;color:#fff">press R to restart</span>';
+if (isTouch) over.innerHTML = 'GAME OVER<br><span style="font-size:18px;color:#fff">tap to restart</span>';
 document.body.appendChild(over);
 // Wave banner (center-screen, fades out)
 const waveBanner = document.createElement('div');
@@ -162,6 +174,11 @@ radar.width = radar.height = 160;
 radar.style.cssText = 'position:fixed;right:16px;top:16px;border:1px solid #466;border-radius:50%;background:rgba(0,10,20,.55);pointer-events:none';
 document.body.appendChild(radar);
 const rctx = radar.getContext('2d');
+if (isTouch) {
+  // Smaller HUD on phones so it doesn't cover the action.
+  hud.style.font = '13px monospace';
+  radar.style.width = radar.style.height = '110px';
+}
 function drawRadar() {
   const S = 160, C = S / 2, scale = C / 30; // world ±30 → radar radius
   rctx.clearRect(0, 0, S, S);
@@ -309,7 +326,10 @@ function upgradeCrates() {
     const old = obstacles[i];
     if (old.userData.isModel) continue;
     const m = makeCrate(old.userData.size);
-    m.position.copy(old.position);
+    // Model crates are grounded at y=0 (normalize() rests the base at 0),
+    // while placeholders were positioned by their center — copying the
+    // placeholder's y verbatim would leave the model floating half a crate high.
+    m.position.set(old.position.x, 0, old.position.z);
     m.rotation.copy(old.rotation);
     m.userData.aabb = new THREE.Box3().setFromObject(m);
     scene.remove(old);
@@ -612,6 +632,10 @@ function hasLineOfSight(from, to) {
 
 // ---------- Game state ----------
 const keys = {};
+let mobileActive = false;
+// Touch input: floating stick on the left half (movement), drag on the right half (aim).
+const touch = { moveId: null, lookId: null, baseX: 0, baseY: 0, lookX: 0, lookY: 0, mx: 0, mz: 0, sprint: false, fire: false };
+const playing = () => mobileActive || document.pointerLockElement === renderer.domElement;
 let yaw = 0, pitch = 0, yVel = 0, grounded = true, recoil = 0, cur = 'RIFLE', fireCd = 0;
 let bobT = 0, stepT = 0, moving = false;
 let health = 100, score = 0, dead = false, hurtCd = 0, dmgF = 0;
@@ -639,13 +663,113 @@ function obstacleFromObject(obj) {
   return null;
 }
 
-function startPlaying() { if (!ready) return; initAudio(); renderer.domElement.requestPointerLock(); }
+function startPlaying() {
+  if (!ready) return;
+  initAudio();
+  if (isTouch) {
+    // No pointer lock on touchscreens: the overlay just goes away and the
+    // virtual controls take over.
+    mobileActive = true;
+    overlay.style.display = 'none';
+    touchUI.style.display = 'block';
+  } else {
+    renderer.domElement.requestPointerLock();
+  }
+}
 playBtn.addEventListener('click', startPlaying);
 resumeEl.addEventListener('click', startPlaying);
 document.addEventListener('pointerlockchange', () => {
+  if (isTouch) return;
   const locked = document.pointerLockElement === renderer.domElement;
   overlay.style.display = locked ? 'none' : 'flex';
   if (!locked && ready) { progressWrap.style.display = 'none'; playBtn.style.display = 'none'; resumeEl.style.display = 'block'; }
+});
+
+// ---------- Touch controls UI (floating stick + action buttons) ----------
+const touchUI = document.createElement('div');
+touchUI.style.cssText = 'position:fixed;inset:0;display:none;pointer-events:none;z-index:5';
+document.body.appendChild(touchUI);
+const stickBase = document.createElement('div');
+stickBase.style.cssText = 'position:fixed;width:110px;height:110px;border:2px solid rgba(255,255,255,.35);border-radius:50%;background:rgba(255,255,255,.07);display:none;pointer-events:none;transform:translate(-50%,-50%)';
+const stickNub = document.createElement('div');
+stickNub.style.cssText = 'position:absolute;left:50%;top:50%;width:46px;height:46px;border-radius:50%;background:rgba(255,179,71,.85);transform:translate(-50%,-50%)';
+stickBase.appendChild(stickNub);
+document.body.appendChild(stickBase);
+function makeTouchBtn(label, css, fontSize = 16) {
+  const b = document.createElement('div');
+  b.textContent = label;
+  b.style.cssText = `position:absolute;pointer-events:auto;display:flex;align-items:center;justify-content:center;border-radius:50%;border:2px solid rgba(255,255,255,.4);background:rgba(20,26,40,.55);color:#fff;font:bold ${fontSize}px monospace;letter-spacing:1px;${css}`;
+  touchUI.appendChild(b);
+  return b;
+}
+const btnFire = makeTouchBtn('FIRE', 'right:26px;bottom:96px;width:92px;height:92px;border-color:#ffb347;color:#ffb347', 20);
+const btnJump = makeTouchBtn('JUMP', 'right:140px;bottom:66px;width:64px;height:64px');
+const btnWpn = makeTouchBtn('WPN', 'right:36px;bottom:210px;width:56px;height:56px', 13);
+const btnRld = makeTouchBtn('RLD', 'right:118px;bottom:190px;width:56px;height:56px', 13);
+function switchWeapon(next) {
+  if (next === cur) return;
+  cur = next;
+  WEAPONS.RIFLE.mesh.visible = cur === 'RIFLE';
+  WEAPONS.SCATTER.mesh.visible = cur === 'SCATTER';
+  sfx.weaponSwitch();
+}
+function btnHandler(el, down, up) {
+  el.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); down(); }, { passive: false });
+  if (up) el.addEventListener('touchend', (e) => { e.preventDefault(); up(); }, { passive: false });
+}
+btnHandler(btnFire, () => { touch.fire = true; }, () => { touch.fire = false; });
+btnHandler(btnJump, () => { if (mobileActive && !dead && grounded) { yVel = 8; grounded = false; sfx.jump(); } });
+btnHandler(btnWpn, () => { if (mobileActive && !dead) switchWeapon(cur === 'RIFLE' ? 'SCATTER' : 'RIFLE'); });
+btnHandler(btnRld, () => { if (mobileActive && !dead && WEAPONS[cur].ammo < WEAPONS[cur].max) { WEAPONS[cur].ammo = WEAPONS[cur].max; sfx.reload(); } });
+const STICK_R = 55;
+addEventListener('touchstart', (e) => {
+  if (!mobileActive || dead) return;
+  for (const t of e.changedTouches) {
+    if (t.target !== renderer.domElement) continue; // buttons handle themselves
+    e.preventDefault();
+    if (t.clientX < innerWidth / 2 && touch.moveId === null) {
+      touch.moveId = t.identifier;
+      touch.baseX = t.clientX; touch.baseY = t.clientY;
+      touch.mx = touch.mz = 0; touch.sprint = false;
+      stickBase.style.display = 'block';
+      stickBase.style.left = t.clientX + 'px';
+      stickBase.style.top = t.clientY + 'px';
+      stickNub.style.transform = 'translate(-50%,-50%)';
+    } else if (t.clientX >= innerWidth / 2 && touch.lookId === null) {
+      touch.lookId = t.identifier;
+      touch.lookX = t.clientX; touch.lookY = t.clientY;
+    }
+  }
+}, { passive: false });
+addEventListener('touchmove', (e) => {
+  if (!mobileActive) return;
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    if (t.identifier === touch.moveId) {
+      let dx = t.clientX - touch.baseX, dy = t.clientY - touch.baseY;
+      const len = Math.hypot(dx, dy);
+      if (len > STICK_R) { dx = dx / len * STICK_R; dy = dy / len * STICK_R; }
+      touch.mx = dx / STICK_R;            // strafe: right is +
+      touch.mz = -dy / STICK_R;           // forward: up is +
+      touch.sprint = len > STICK_R * 0.92;
+      stickNub.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    } else if (t.identifier === touch.lookId) {
+      yaw -= (t.clientX - touch.lookX) * 0.0045;
+      pitch = Math.max(-1.5, Math.min(1.5, pitch - (t.clientY - touch.lookY) * 0.0045));
+      camera.rotation.set(pitch, yaw, 0, 'YXZ');
+      touch.lookX = t.clientX; touch.lookY = t.clientY;
+    }
+  }
+}, { passive: false });
+addEventListener('touchend', (e) => {
+  for (const t of e.changedTouches) {
+    if (t.identifier === touch.moveId) {
+      touch.moveId = null; touch.mx = touch.mz = 0; touch.sprint = false;
+      stickBase.style.display = 'none';
+    } else if (t.identifier === touch.lookId) {
+      touch.lookId = null;
+    }
+  }
 });
 addEventListener('mousemove', e => {
   if (document.pointerLockElement !== renderer.domElement) return;
@@ -653,25 +777,43 @@ addEventListener('mousemove', e => {
   pitch = Math.max(-1.5, Math.min(1.5, pitch - e.movementY * 0.002));
   camera.rotation.set(pitch, yaw, 0, 'YXZ');
 });
+function gameOver() {
+  dead = true;
+  over.style.display = 'flex';
+  sfx.gameOver();
+  if (isTouch) {
+    mobileActive = false;
+    touchUI.style.display = 'none';
+    stickBase.style.display = 'none';
+    touch.moveId = touch.lookId = null;
+    touch.fire = false;
+  } else {
+    document.exitPointerLock();
+  }
+}
+function restart() {
+  dead = false; health = MAX_HEALTH; score = 0; wave = 0; wavePause = 1.5;
+  WEAPONS.RIFLE.ammo = 30; WEAPONS.SCATTER.ammo = 12;
+  camera.position.set(0, 1.7, 0);
+  while (pickups.length) scene.remove(pickups.pop().mesh);
+  over.style.display = 'none';
+  if (isTouch) { mobileActive = true; touchUI.style.display = 'block'; }
+}
+over.addEventListener('touchstart', (e) => { e.preventDefault(); if (dead) restart(); }, { passive: false });
+over.addEventListener('click', () => { if (dead && isTouch) restart(); });
 addEventListener('keydown', e => {
   keys[e.code] = true;
   if (!ready) return;
   if (e.code === 'Space' && grounded) { yVel = 8; grounded = false; sfx.jump(); }
-  if (e.code === 'Digit1' || e.code === 'Digit2') { const next = e.code === 'Digit1' ? 'RIFLE' : 'SCATTER'; if (next !== cur) { cur = next; WEAPONS.RIFLE.mesh.visible = cur === 'RIFLE'; WEAPONS.SCATTER.mesh.visible = cur === 'SCATTER'; sfx.weaponSwitch(); } }
+  if (e.code === 'Digit1' || e.code === 'Digit2') switchWeapon(e.code === 'Digit1' ? 'RIFLE' : 'SCATTER');
   if (e.code === 'KeyR' && !dead) { WEAPONS[cur].ammo = WEAPONS[cur].max; sfx.reload(); }
-  if (e.code === 'KeyR' && dead) {
-    dead = false; health = MAX_HEALTH; score = 0; wave = 0; wavePause = 1.5;
-    WEAPONS.RIFLE.ammo = 30; WEAPONS.SCATTER.ammo = 12;
-    camera.position.set(0, 1.7, 0);
-    while (pickups.length) scene.remove(pickups.pop().mesh);
-    over.style.display = 'none';
-  }
+  if (e.code === 'KeyR' && dead) restart();
 });
 addEventListener('keyup', e => keys[e.code] = false);
-addEventListener('mousedown', () => {
+function fireWeapon() {
   if (!ready) return;
   const w = WEAPONS[cur];
-  if (document.pointerLockElement !== renderer.domElement || dead || fireCd > 0) return;
+  if (!playing() || dead || fireCd > 0) return;
   if (w.ammo <= 0) { sfx.emptyClick(); return; }
   w.ammo--;
   fireCd = w.cd;
@@ -709,7 +851,8 @@ addEventListener('mousedown', () => {
   }
   // Wave cleared → short intermission, then a bigger wave.
   if (!sentries.length && wavePause <= 0) { wavePause = 3; sfx.waveClear(); }
-});
+}
+addEventListener('mousedown', fireWeapon);
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
@@ -719,12 +862,19 @@ addEventListener('resize', () => {
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  const locked = document.pointerLockElement === renderer.domElement;
-  if (locked && !dead) {
-    const speed = (keys['ShiftLeft'] || keys['ShiftRight']) ? 9 : 5;
-    const f = (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
-    const r = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
-    moving = (f !== 0 || r !== 0) && grounded;
+  const active = playing();
+  if (active && !dead) {
+    let f, r, sprint;
+    if (mobileActive) {
+      f = touch.mz; r = touch.mx; sprint = touch.sprint;
+      if (touch.fire) fireWeapon();
+    } else {
+      f = (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
+      r = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
+      sprint = keys['ShiftLeft'] || keys['ShiftRight'];
+    }
+    const speed = sprint ? 9 : 5;
+    moving = (Math.abs(f) > 0.05 || Math.abs(r) > 0.05) && grounded;
     stepT -= dt * (speed / 5);
     if (moving && stepT <= 0) { stepT = 0.45; sfx.step(); }
     const sin = Math.sin(yaw), cos = Math.cos(yaw);
@@ -735,7 +885,7 @@ function animate() {
     camera.position.y += yVel * dt;
     if (camera.position.y <= 1.7) { if (!grounded && yVel < -6) sfx.land(); camera.position.y = 1.7; yVel = 0; grounded = true; }
     // Weapon bob: gentle sway while moving on the ground.
-    bobT += dt * (moving ? (keys['ShiftLeft'] || keys['ShiftRight'] ? 11 : 7) : 2);
+    bobT += dt * (moving ? (sprint ? 11 : 7) : 2);
     const bobAmp = moving ? 0.02 : 0.005;
     WEAPONS[cur].mesh.position.x = 0.25 + Math.sin(bobT) * bobAmp;
     WEAPONS[cur].mesh.position.y = -0.2 + Math.abs(Math.cos(bobT)) * bobAmp * 0.8;
@@ -749,7 +899,7 @@ function animate() {
       // goes degenerate when the sentry stands exactly on the camera's X/Z and
       // can leave the model flipped upside down / sunk into the floor.
       s.mesh.rotation.set(0, Math.atan2(dx, dz), 0, 'YXZ');
-      if (locked) {
+      if (active) {
         s.mesh.position.x = Math.max(-B + 1, Math.min(B - 1, s.mesh.position.x + dx / d * 1.3 * dt));
         s.mesh.position.z = Math.max(-B + 1, Math.min(B - 1, s.mesh.position.z + dz / d * 1.3 * dt));
         collideCrates(s.mesh.position, 0.6); // sentries slide around crates instead of ghosting through
@@ -760,7 +910,7 @@ function animate() {
         s.mesh.rotation.z = Math.sin(s.walkT) * 0.05; // slight side-to-side swagger (YXZ: roll after yaw)
         if (d < 1.3 && hurtCd <= 0) {
           hurtCd = 1.1; health -= 5; dmgF = 1; sfx.playerHurt();
-          if (health <= 0) { dead = true; over.style.display = 'flex'; sfx.gameOver(); document.exitPointerLock(); }
+          if (health <= 0) gameOver();
         }
       }
       // --- Enemy laser: telegraph (thin beam) then fire (thick damaging beam) ---
@@ -770,19 +920,19 @@ function animate() {
           scene.remove(s.telegraph.mesh);
           const from = s.mesh.position.clone().setY(s.mesh.position.y + 1.4);
           const to = camera.position.clone();
-          if (locked && !dead && hasLineOfSight(from, to) && from.distanceTo(to) < 32) {
+          if (active && !dead && hasLineOfSight(from, to) && from.distanceTo(to) < 32) {
             const beam = makeBeam(from, to, laserBeamMat.clone(), 0.05);
             scene.add(beam);
             lasers.push({ mesh: beam, life: 0.18 });
             sfx.laserFire();
             spawnExplosion(to.clone().add(new THREE.Vector3(0, -0.3, 0)), 0xff2222, 10, 3);
             health -= 8; dmgF = 1; sfx.playerHurt();
-            if (health <= 0) { dead = true; over.style.display = 'flex'; sfx.gameOver(); document.exitPointerLock(); }
+            if (health <= 0) gameOver();
           }
           s.telegraph = null;
           s.laserT = 3 + Math.random() * 4;
         }
-      } else if (locked) {
+      } else if (active) {
         s.laserT -= dt;
         if (s.laserT <= 0 && d > 2.5 && d < 32) {
           const from = s.mesh.position.clone().setY(s.mesh.position.y + 1.4);

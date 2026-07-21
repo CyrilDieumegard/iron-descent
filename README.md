@@ -1,6 +1,9 @@
 # Iron Descent
 
-Browser FPS built with Three.js and local AI-assisted development.
+Browser FPS built with Three.js, [LocalClaw](https://localclaw.io/pricing)
+and the Kimi K3 AI model.
+
+_Built with [LocalClaw](https://localclaw.io/pricing) — AI-assisted development powered by Kimi K3._
 
 **▶ Play:** https://cyrildieumegard.github.io/iron-descent/
 
@@ -20,7 +23,8 @@ enemies drop health/ammo pickups, and each wave gets bigger and tougher.
 | Space | Jump |
 | Shift | Sprint |
 
-Desktop browser with mouse + keyboard required.
+On touch devices: left thumb = virtual stick to move (push all the way to
+sprint), right thumb drag = aim, on-screen FIRE / JUMP / WPN / RLD buttons.
 
 ## Development
 
