@@ -1,0 +1,21 @@
+{
+  "dependencies" : {
+    "@vitejs\/plugin-react" : "latest",
+    "react" : "latest",
+    "react-dom" : "latest",
+    "three" : "^0.166.1",
+    "vite" : "latest"
+  },
+  "devDependencies" : {
+    "vite" : "^5.4.21"
+  },
+  "name" : "iron-descent",
+  "private" : true,
+  "scripts" : {
+    "build" : "vite build",
+    "dev" : "vite",
+    "preview" : "vite preview"
+  },
+  "type" : "module",
+  "version" : "0.1.0"
+}

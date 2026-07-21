@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>sentry orientation debug</title>
+  <style>
+    body { margin: 0; background: #223; }
+    #tag { position: fixed; top: 10px; left: 10px; color: #fff; font: 24px monospace; }
+  </style>
+</head>
+<body>
+  <div id="tag">loading…</div>
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+    const params = new URLSearchParams(location.search);
+    const side = params.get('side') || 'front'; // front = camera on +Z, back = camera on -Z
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(innerWidth, innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x8899aa);
+    const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 100);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 1.4));
+    const dl = new THREE.DirectionalLight(0xffffff, 2.2);
+    dl.position.set(3, 6, 4);
+    scene.add(dl);
+
+    // AxesHelper: X = red, Y = green, Z = blue. Plus bright markers at +/- Z.
+    scene.add(new THREE.AxesHelper(2.5));
+    const zPlus = new THREE.Mesh(new THREE.SphereGeometry(0.18), new THREE.MeshBasicMaterial({ color: 0x00ff00 }));
+    zPlus.position.set(0, 2.3, 1.2);
+    const zMinus = new THREE.Mesh(new THREE.SphereGeometry(0.18), new THREE.MeshBasicMaterial({ color: 0xff00ff }));
+    zMinus.position.set(0, 2.3, -1.2);
+    scene.add(zPlus, zMinus);
+
+    new GLTFLoader().load('/models/sentry.glb', (gltf) => {
+      const obj = gltf.scene;
+      const box = new THREE.Box3().setFromObject(obj);
+      const size = box.getSize(new THREE.Vector3());
+      const s = 2 / size.y;
+      obj.scale.setScalar(s);
+      const box2 = new THREE.Box3().setFromObject(obj);
+      const c = box2.getCenter(new THREE.Vector3());
+      obj.position.x -= c.x;
+      obj.position.z -= c.z;
+      obj.position.y -= box2.min.y;
+      scene.add(obj);
+
+      if (side === 'front') camera.position.set(1.6, 1.5, 3.4);
+      else camera.position.set(1.6, 1.5, -3.4);
+      camera.lookAt(0, 1, 0);
+
+      renderer.render(scene, camera);
+      document.getElementById('tag').textContent =
+        (side === 'front' ? 'CAMERA ON +Z SIDE' : 'CAMERA ON -Z SIDE') + ' | green ball = +Z, magenta ball = -Z';
+      document.title = 'done';
+    });
+  </script>
+</body>
+</html>
