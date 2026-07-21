@@ -214,7 +214,7 @@ const gltfLoader = new GLTFLoader(manager);
 
 function loadGLB(name) {
   return new Promise((resolve) => {
-    gltfLoader.load(`/models/${name}.glb`,
+    gltfLoader.load(`${import.meta.env.BASE_URL}models/${name}.glb`,
       (gltf) => { ASSETS[name] = gltf.scene; ANIMS[name] = gltf.animations || []; resolve(); },
       undefined,
       (err) => { console.warn(`[assets] failed to load ${name}.glb, using placeholder`, err); resolve(); });
