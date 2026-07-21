@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { initAudio, sfx } from './audio.js';
 
@@ -107,10 +108,35 @@ document.body.appendChild(hud);
 const cross = document.createElement('div');
 cross.style.cssText = 'position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px;background:#fff;border-radius:50%;box-shadow:0 0 0 1.5px #000;pointer-events:none';
 document.body.appendChild(cross);
+// ---------- Start menu / pause overlay ----------
 const overlay = document.createElement('div');
-overlay.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.7);color:#fff;font:24px monospace;cursor:pointer';
-overlay.textContent = 'LOADING MODELS…';
+overlay.style.cssText = 'position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#151a28 0%,#05060a 78%);color:#fff;font-family:monospace;user-select:none';
+overlay.innerHTML = `
+<div style="text-align:center;max-width:600px;padding:24px">
+  <div style="font-size:54px;font-weight:bold;letter-spacing:8px;color:#ffb347;text-shadow:0 0 26px rgba(255,102,0,.8)">IRON&nbsp;DESCENT</div>
+  <div style="margin-top:8px;color:#8a94ab;font-size:13px;letter-spacing:2px">ARENA FPS — SURVIVE THE SENTRY WAVES</div>
+  <div style="margin:30px auto 0;display:inline-block;text-align:left;font-size:15px;line-height:2;color:#cfd6e4">
+    <div><span style="color:#fff;font-weight:bold">WASD</span> move &nbsp;·&nbsp; <span style="color:#fff;font-weight:bold">Mouse</span> aim &amp; shoot</div>
+    <div><span style="color:#fff;font-weight:bold">1 / 2</span> weapons &nbsp;·&nbsp; <span style="color:#fff;font-weight:bold">R</span> reload &nbsp;·&nbsp; <span style="color:#fff;font-weight:bold">Space</span> jump &nbsp;·&nbsp; <span style="color:#fff;font-weight:bold">Shift</span> sprint</div>
+  </div>
+  <div id="id-progress-wrap" style="margin:34px auto 0;width:320px;max-width:80%">
+    <div id="id-progress-label" style="font-size:13px;color:#9fb0ff;margin-bottom:8px">LOADING… 0%</div>
+    <div style="height:6px;background:#222a3a;border-radius:3px;overflow:hidden"><div id="id-progress-bar" style="height:100%;width:0%;background:#ffb347;transition:width .15s"></div></div>
+  </div>
+  <button id="id-play" style="display:none;margin-top:34px;padding:14px 64px;font:bold 22px monospace;letter-spacing:4px;color:#0a0a12;background:#ffb347;border:none;border-radius:6px;cursor:pointer;box-shadow:0 0 24px rgba(255,153,51,.5)">PLAY</button>
+  <div id="id-resume" style="display:none;margin-top:34px;font-size:22px;color:#ffb347;cursor:pointer">CLICK TO RESUME</div>
+  <div style="margin-top:30px;font-size:12px;color:#6a7285">Desktop browser required (mouse + keyboard)</div>
+  <div style="margin-top:12px;font-size:13px;color:#8a94ab">
+    <a href="https://github.com/CyrilDieumegard/iron-descent" target="_blank" rel="noopener" style="color:#9fb0ff">View source</a>
+    &nbsp;·&nbsp; Built with LocalClaw
+  </div>
+</div>`;
 document.body.appendChild(overlay);
+const playBtn = overlay.querySelector('#id-play');
+const resumeEl = overlay.querySelector('#id-resume');
+const progressWrap = overlay.querySelector('#id-progress-wrap');
+const progressLabel = overlay.querySelector('#id-progress-label');
+const progressBar = overlay.querySelector('#id-progress-bar');
 const dmgFx = document.createElement('div');
 dmgFx.style.cssText = 'position:fixed;inset:0;background:rgba(255,0,0,.4);opacity:0;pointer-events:none';
 document.body.appendChild(dmgFx);
@@ -204,20 +230,30 @@ hpBar.style.cssText = 'height:100%;width:100%;background:#e33;transition:width .
 hpBarOuter.appendChild(hpBar);
 document.body.appendChild(hpBarOuter);
 
-// ---------- GLB asset loading (Meshy models in public/models/) ----------
-const ASSETS = { sentry: null, sentrywalk: null, rifle: null, scatter: null, crate: null };
-const ANIMS = { sentrywalk: [] };
+// ---------- GLB asset loading (Meshy models in public/models/, meshopt-compressed) ----------
+const ASSETS = { sentry: null, rifle: null, scatter: null, crate: null };
 
-const manager = new THREE.LoadingManager();
-manager.onProgress = (url, loaded, total) => { overlay.textContent = `LOADING MODELS ${loaded}/${total}`; };
-const gltfLoader = new GLTFLoader(manager);
+const gltfLoader = new GLTFLoader();
+gltfLoader.setMeshoptDecoder(MeshoptDecoder); // models are compressed with meshopt
+
+// Real byte-based loading percentage across all in-flight GLB downloads.
+const dlBytes = {}; // name -> { loaded, total, done }
+function updateProgressUI() {
+  let loaded = 0, total = 0, done = 0;
+  const names = Object.keys(dlBytes);
+  for (const n of names) { loaded += dlBytes[n].loaded; total += dlBytes[n].total || 0; if (dlBytes[n].done) done++; }
+  const pct = total > 0 ? Math.min(99, Math.round(loaded / total * 100)) : Math.round(done / Math.max(1, names.length) * 100);
+  progressLabel.textContent = `LOADING… ${pct}%`;
+  progressBar.style.width = pct + '%';
+}
 
 function loadGLB(name) {
   return new Promise((resolve) => {
+    dlBytes[name] = { loaded: 0, total: 0, done: false };
     gltfLoader.load(`${import.meta.env.BASE_URL}models/${name}.glb`,
-      (gltf) => { ASSETS[name] = gltf.scene; ANIMS[name] = gltf.animations || []; resolve(); },
-      undefined,
-      (err) => { console.warn(`[assets] failed to load ${name}.glb, using placeholder`, err); resolve(); });
+      (gltf) => { ASSETS[name] = gltf.scene; dlBytes[name].done = true; updateProgressUI(); resolve(); },
+      (xhr) => { dlBytes[name].loaded = xhr.loaded; if (xhr.total) dlBytes[name].total = xhr.total; updateProgressUI(); },
+      (err) => { console.warn(`[assets] failed to load ${name}.glb, using placeholder`, err); dlBytes[name].done = true; resolve(); });
   });
 }
 
@@ -258,11 +294,29 @@ function makeCrate(s) {
     const inner = normalize(cloneWithMaterials(ASSETS.crate), s, 'y');
     enableShadows(inner);
     g.add(inner);
+    g.userData.isModel = true;
+    g.userData.size = s;
     return g;
   }
   const m = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), new THREE.MeshStandardMaterial({ color: 0x6b4a2f }));
   m.userData.halfHeight = s / 2;
+  m.userData.size = s;
   return m;
+}
+// Swap placeholder crates for the GLB version once crate.glb finishes its background load.
+function upgradeCrates() {
+  for (let i = 0; i < obstacles.length; i++) {
+    const old = obstacles[i];
+    if (old.userData.isModel) continue;
+    const m = makeCrate(old.userData.size);
+    m.position.copy(old.position);
+    m.rotation.copy(old.rotation);
+    m.userData.aabb = new THREE.Box3().setFromObject(m);
+    scene.remove(old);
+    scene.add(m);
+    obstacles[i] = m;
+  }
+  refreshShootTargets();
 }
 function buildObstacles() {
   const sentrySpawns = [[-22, -22], [22, -22], [-22, 22], [22, 22]];
@@ -335,18 +389,11 @@ function collideCrates(pos, radius) {
 }
 
 function makeSentryMesh(sentry) {
-  const proto = ASSETS.sentrywalk || ASSETS.sentry;
+  const proto = ASSETS.sentry;
   if (proto) {
     const g = new THREE.Group();
     const inner = normalize(cloneWithMaterials(proto), 2, 'y');
     enableShadows(inner);
-    // If the Meshy-animated model is present, play its walk clip on a per-instance mixer.
-    if (ASSETS.sentrywalk && ANIMS.sentrywalk.length) {
-      const mixer = new THREE.AnimationMixer(inner);
-      const action = mixer.clipAction(ANIMS.sentrywalk[0]);
-      action.play();
-      sentry.mixer = mixer;
-    }
     // Base red glow so sentries read against the dark arena.
     inner.traverse((o) => {
       if (o.isMesh && o.material.emissive) {
@@ -396,7 +443,7 @@ function spawnSentries() {
       if (Math.hypot(x - camera.position.x, z - camera.position.z) < 12) continue;
       break;
     }
-    const s = { mesh: null, hp, laserT: 2 + Math.random() * 4, telegraph: null, mixer: null, walkT: 0 };
+    const s = { mesh: null, hp, laserT: 2 + Math.random() * 4, telegraph: null, walkT: 0 };
     const mesh = makeSentryMesh(s);
     s.mesh = mesh;
     mesh.position.set(x, mesh.userData.halfHeight || 0, z);
@@ -448,6 +495,7 @@ function makeWeaponModel(name, length, fallbackGeo, fallbackColor) {
     const c = box2.getCenter(new THREE.Vector3());
     inner.position.sub(c);
     g.add(inner);
+    g.userData.isModel = true;
   } else {
     g.add(new THREE.Mesh(fallbackGeo, new THREE.MeshStandardMaterial({ color: fallbackColor })));
   }
@@ -465,6 +513,17 @@ function buildWeapons() {
   flash = new THREE.PointLight(0xffaa33, 0, 12);
   flash.position.set(0.25, -0.1, -1);
   camera.add(flash);
+}
+// Swap the placeholder scattergun for the GLB version once scatter.glb finishes loading.
+function upgradeScatter() {
+  const old = WEAPONS.SCATTER.mesh;
+  if (old.userData.isModel) return;
+  const m = makeWeaponModel('scatter', 0.7, new THREE.BoxGeometry(0.34, 0.22, 0.34), 0x54383a);
+  m.position.copy(old.position);
+  m.visible = old.visible;
+  camera.remove(old);
+  camera.add(m);
+  WEAPONS.SCATTER.mesh = m;
 }
 
 // ---------- Explosions (POOLED particle bursts + fixed light pool) ----------
@@ -580,9 +639,13 @@ function obstacleFromObject(obj) {
   return null;
 }
 
-overlay.addEventListener('click', () => { if (ready) { initAudio(); renderer.domElement.requestPointerLock(); } });
+function startPlaying() { if (!ready) return; initAudio(); renderer.domElement.requestPointerLock(); }
+playBtn.addEventListener('click', startPlaying);
+resumeEl.addEventListener('click', startPlaying);
 document.addEventListener('pointerlockchange', () => {
-  overlay.style.display = document.pointerLockElement === renderer.domElement ? 'none' : 'flex';
+  const locked = document.pointerLockElement === renderer.domElement;
+  overlay.style.display = locked ? 'none' : 'flex';
+  if (!locked && ready) { progressWrap.style.display = 'none'; playBtn.style.display = 'none'; resumeEl.style.display = 'block'; }
 });
 addEventListener('mousemove', e => {
   if (document.pointerLockElement !== renderer.domElement) return;
@@ -690,15 +753,11 @@ function animate() {
         s.mesh.position.x = Math.max(-B + 1, Math.min(B - 1, s.mesh.position.x + dx / d * 1.3 * dt));
         s.mesh.position.z = Math.max(-B + 1, Math.min(B - 1, s.mesh.position.z + dz / d * 1.3 * dt));
         collideCrates(s.mesh.position, 0.6); // sentries slide around crates instead of ghosting through
-        // Walk animation: Meshy-baked clip if available, otherwise a procedural bob+sway.
-        if (s.mixer) {
-          s.mixer.update(dt);
-        } else {
-          s.walkT += dt * 6;
-          const bob = Math.abs(Math.sin(s.walkT)) * 0.07;
-          s.mesh.position.y = (s.mesh.userData.halfHeight || 0) + bob;
-          s.mesh.rotation.z = Math.sin(s.walkT) * 0.05; // slight side-to-side swagger (YXZ: roll after yaw)
-        }
+        // Walk animation: procedural bob+sway (sentry.glb ships without baked clips).
+        s.walkT += dt * 6;
+        const bob = Math.abs(Math.sin(s.walkT)) * 0.07;
+        s.mesh.position.y = (s.mesh.userData.halfHeight || 0) + bob;
+        s.mesh.rotation.z = Math.sin(s.walkT) * 0.05; // slight side-to-side swagger (YXZ: roll after yaw)
         if (d < 1.3 && hurtCd <= 0) {
           hurtCd = 1.1; health -= 5; dmgF = 1; sfx.playerHurt();
           if (health <= 0) { dead = true; over.style.display = 'flex'; sfx.gameOver(); document.exitPointerLock(); }
@@ -773,14 +832,21 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-// Boot: load GLBs first (placeholders used for any that fail), then build the world and start.
-Promise.all(['sentry', 'sentrywalk', 'rifle', 'scatter', 'crate'].map(loadGLB)).then(() => {
+// Boot: load only what the first seconds of gameplay need (rifle + first enemy),
+// then stream the remaining models in the background so time-to-playable stays low.
+Promise.all([loadGLB('sentry'), loadGLB('rifle')]).then(() => {
   buildObstacles();
   buildWeapons();
   wave = 1;
   spawnSentries();
   ready = true;
-  overlay.textContent = 'CLICK TO PLAY';
+  progressLabel.textContent = 'LOADING… 100%';
+  progressBar.style.width = '100%';
+  progressWrap.style.display = 'none';
+  playBtn.style.display = 'inline-block';
+  // Background load: shotgun + crates swap in seamlessly when ready.
+  loadGLB('scatter').then(() => { if (ASSETS.scatter) upgradeScatter(); });
+  loadGLB('crate').then(() => { if (ASSETS.crate) upgradeCrates(); });
   // Headless screenshot helpers: ?shot hides the overlay, &yaw=&pitch= preset the camera.
   const qs = new URLSearchParams(location.search);
   if (qs.has('yaw')) yaw = parseFloat(qs.get('yaw')) || 0;
